@@ -1,14 +1,24 @@
 .stage {
   margin: 24px 0;
-  padding: 20px;
-  background: #fafafa;
+  padding: 20px 20px 20px 24px;
+  background: #161b22;
   border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #30363d;
+  position: relative;
+}
+
+/* Stage 1 accent — blue (input / first opinions) */
+.stage1 {
+  border-left: 4px solid #58a6ff;
+}
+
+.stage1 .stage-title {
+  color: #79b8ff;
 }
 
 .stage-title {
   margin: 0 0 16px 0;
-  color: #333;
+  color: #f0f6fc;
   font-size: 16px;
   font-weight: 600;
 }
@@ -22,44 +32,92 @@
 
 .tab {
   padding: 8px 16px;
-  background: #ffffff;
-  border: 1px solid #d0d0d0;
+  background: #21262d;
+  border: 1px solid #30363d;
   border-radius: 6px 6px 0 0;
-  color: #666;
+  color: #8b949e;
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .tab:hover {
-  background: #f0f0f0;
-  color: #333;
-  border-color: #4a90e2;
+  background: #2d333b;
+  color: #c9d1d9;
 }
 
 .tab.active {
-  background: #ffffff;
-  color: #4a90e2;
-  border-color: #4a90e2;
-  border-bottom-color: #ffffff;
+  background: #0d1117;
+  color: #58a6ff;
+  border-color: #58a6ff;
+  border-bottom-color: #0d1117;
   font-weight: 600;
 }
 
+/* Persona-specific colors. Each persona has a colored dot and tinted active state. */
+.tab.persona-contrarian::before,
+.tab.persona-first-principles-skeptic::before,
+.tab.persona-expansionist::before,
+.tab.persona-outsider::before,
+.tab.persona-executor::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tab.persona-contrarian::before { background: #f85149; }
+.tab.persona-first-principles-skeptic::before { background: #a371f7; }
+.tab.persona-expansionist::before { background: #e3b341; }
+.tab.persona-outsider::before { background: #39d0d8; }
+.tab.persona-executor::before { background: #fb923c; }
+
+.tab.persona-contrarian.active {
+  color: #ff7b72;
+  border-color: #f85149;
+  border-bottom-color: #0d1117;
+}
+.tab.persona-first-principles-skeptic.active {
+  color: #bc8cff;
+  border-color: #a371f7;
+  border-bottom-color: #0d1117;
+}
+.tab.persona-expansionist.active {
+  color: #f0c560;
+  border-color: #e3b341;
+  border-bottom-color: #0d1117;
+}
+.tab.persona-outsider.active {
+  color: #5ee0e8;
+  border-color: #39d0d8;
+  border-bottom-color: #0d1117;
+}
+.tab.persona-executor.active {
+  color: #ffa657;
+  border-color: #fb923c;
+  border-bottom-color: #0d1117;
+}
+
 .tab-content {
-  background: #ffffff;
+  background: #0d1117;
   padding: 16px;
   border-radius: 6px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #30363d;
 }
 
 .model-name {
-  color: #888;
+  color: #6e7681;
   font-size: 12px;
   margin-bottom: 12px;
-  font-family: monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
 }
 
 .response-text {
-  color: #333;
+  color: #c9d1d9;
   line-height: 1.6;
 }

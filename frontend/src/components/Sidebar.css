@@ -1,7 +1,7 @@
 .sidebar {
   width: 260px;
-  background: #f8f8f8;
-  border-right: 1px solid #e0e0e0;
+  background: #161b22;
+  border-right: 1px solid #30363d;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -9,31 +9,31 @@
 
 .sidebar-header {
   padding: 16px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #30363d;
 }
 
 .sidebar-header h1 {
   font-size: 18px;
   margin: 0 0 12px 0;
-  color: #333;
+  color: #f0f6fc;
 }
 
 .new-conversation-btn {
   width: 100%;
   padding: 10px;
-  background: #4a90e2;
-  border: 1px solid #4a90e2;
+  background: #58a6ff;
+  border: 1px solid #58a6ff;
   border-radius: 6px;
-  color: #fff;
+  color: #0d1117;
   cursor: pointer;
   font-size: 14px;
   transition: background 0.2s;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .new-conversation-btn:hover {
-  background: #357abd;
-  border-color: #357abd;
+  background: #388bfd;
+  border-color: #388bfd;
 }
 
 .conversation-list {
@@ -45,7 +45,7 @@
 .no-conversations {
   padding: 16px;
   text-align: center;
-  color: #999;
+  color: #6e7681;
   font-size: 14px;
 }
 
@@ -58,21 +58,21 @@
 }
 
 .conversation-item:hover {
-  background: #f0f0f0;
+  background: #21262d;
 }
 
 .conversation-item.active {
-  background: #e8f0fe;
-  border: 1px solid #4a90e2;
+  background: #1f2937;
+  border: 1px solid #58a6ff;
 }
 
 .conversation-title {
-  color: #333;
+  color: #c9d1d9;
   font-size: 14px;
   margin-bottom: 4px;
 }
 
 .conversation-meta {
-  color: #999;
+  color: #6e7681;
   font-size: 12px;
 }

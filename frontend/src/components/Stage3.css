@@ -1,25 +1,31 @@
+/* Stage 3 accent — green (conclusion / final call) */
 .stage3 {
-  background: #f0fff0;
-  border-color: #c8e6c8;
+  background: #0d2818;
+  border-color: #1a4a2a;
+  border-left: 4px solid #3fb950;
+}
+
+.stage3 .stage-title {
+  color: #56d364;
 }
 
 .final-response {
-  background: #ffffff;
+  background: #0d1117;
   padding: 20px;
   border-radius: 6px;
-  border: 1px solid #c8e6c8;
+  border: 1px solid #1a4a2a;
 }
 
 .chairman-label {
-  color: #2d8a2d;
+  color: #3fb950;
   font-size: 12px;
-  font-family: monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
   margin-bottom: 12px;
   font-weight: 600;
 }
 
 .final-text {
-  color: #333;
+  color: #c9d1d9;
   line-height: 1.7;
   font-size: 15px;
 }
