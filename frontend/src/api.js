@@ -2,7 +2,8 @@
  * API client for the Persona Council backend.
  */
 
-const API_BASE = 'http://localhost:8001';
+// Use the current host for API requests so it works from any hostname/IP
+const API_BASE = `http://${window.location.hostname}:8001`;
 
 export const api = {
   /**
