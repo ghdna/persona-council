@@ -1,6 +1,7 @@
 services:
   backend:
     image: ghcr.io/ghdna/persona-council-backend:latest
+    container_name: persona-council-backend
     ports:
       - "8001:8001"
     env_file:
@@ -11,6 +12,7 @@ services:
 
   frontend:
     image: ghcr.io/ghdna/persona-council-frontend:latest
+    container_name: persona-council-frontend
     ports:
       - "5173:80"
     depends_on:
