@@ -181,6 +181,37 @@ Then open <http://localhost:5173>.
 
 ---
 
+## Running with Docker
+
+No local Python or Node required — just Docker.
+
+**Step 1: Get the compose file**
+```bash
+curl -O https://raw.githubusercontent.com/ghdna/persona-council/master/docker-compose.yml
+```
+
+**Step 2: Set up your API keys**
+```bash
+# Create a .env file with at least one provider key
+cat > .env <<EOF
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GOOGLE_API_KEY=...
+OPENROUTER_API_KEY=sk-or-v1-...
+EOF
+```
+
+**Step 3: Run**
+```bash
+docker-compose up -d
+```
+
+Open <http://localhost:5173>. Conversation history persists in a local `data/` directory across restarts.
+
+To stop: `docker-compose down`
+
+---
+
 ## Customization
 
 | What | Where | How |
