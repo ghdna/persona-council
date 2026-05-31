@@ -16,6 +16,14 @@ A multi-persona council pattern for solo decision-making. Extended from Andrej K
 
 ## Quick Start
 
+**Option A: Docker (no local Python or Node required)**
+```bash
+curl -O https://raw.githubusercontent.com/ghdna/persona-council/master/docker-compose.yml
+# Create .env with at least one provider key (see below)
+docker-compose up -d
+```
+
+**Option B: Local**
 ```bash
 git clone https://github.com/ghdna/persona-council.git
 cd persona-council
