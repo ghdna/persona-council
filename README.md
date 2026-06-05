@@ -12,6 +12,12 @@ A multi-persona council pattern for solo decision-making. Extended from Andrej K
 
 *Five color-coded personas debate a decision, rank each other with identities anonymized, and the Chairman synthesizes a final call with a Monday-morning action.*
 
+## Demo
+
+https://github.com/user-attachments/assets/96ac70bd-225b-4a3b-ad92-392379a3622f
+
+*Walkthrough: posing a question, watching the three council stages stream in, and reading the Chairman's synthesis.*
+
 ---
 
 ## Quick Start
