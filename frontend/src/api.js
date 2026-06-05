@@ -101,24 +101,46 @@ export const api = {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
 
+    // Network chunks are not aligned to SSE event boundaries: a single
+    // `data: {...}` line can be split across two reads (most likely for large
+    // events like stage2_complete). Buffer across reads and only parse complete
+    // events, which the backend delimits with a blank line ("\n\n").
+    let buffer = '';
+
+    const dispatchEvent = (rawEvent) => {
+      const data = rawEvent
+        .split('\n')
+        .filter((line) => line.startsWith('data: '))
+        .map((line) => line.slice(6))
+        .join('\n');
+      if (!data) return;
+      try {
+        const event = JSON.parse(data);
+        onEvent(event.type, event);
+      } catch (e) {
+        console.error('Failed to parse SSE event:', e, data);
+      }
+    };
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
+      // { stream: true } keeps multi-byte UTF-8 chars intact across chunks.
+      buffer += decoder.decode(value, { stream: true });
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          try {
-            const event = JSON.parse(data);
-            onEvent(event.type, event);
-          } catch (e) {
-            console.error('Failed to parse SSE event:', e);
-          }
-        }
+      let sepIndex;
+      while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+        const rawEvent = buffer.slice(0, sepIndex);
+        buffer = buffer.slice(sepIndex + 2);
+        dispatchEvent(rawEvent);
       }
+    }
+
+    // Flush any trailing event that wasn't terminated by a blank line.
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      dispatchEvent(buffer);
     }
   },
 };
