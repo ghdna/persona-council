@@ -1,10 +1,17 @@
 """Google Gemini API provider."""
 
 import os
+import re
 import httpx
 from typing import List, Dict, Any, Optional, Tuple
 
 GEMINI_API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# Non-chat Gemini family models to drop from the dropdown.
+_GEMINI_EXCLUDE = ("embedding", "aqa", "imagen", "veo", "tts", "image", "learnlm")
+# Hide pinned version snapshots (e.g. gemini-2.0-flash-001) to keep stable aliases.
+_GEMINI_PINNED = re.compile(r"-\d{3}$")
 
 
 async def query(
@@ -78,3 +85,41 @@ async def query(
         return None, f"Timeout after {timeout}s"
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
+
+
+async def list_models(timeout: float = 10.0) -> Tuple[List[str], Optional[str]]:
+    """List Gemini chat models as 'google/<id>'.
+
+    Keeps models that support generateContent and drops non-chat families and
+    pinned version snapshots, so new flagship releases surface automatically.
+    Returns ([...], None) on success or ([], error) on failure (caller falls
+    back to the curated list).
+    """
+    api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+    if not api_key:
+        return [], "GOOGLE_API_KEY (or GEMINI_API_KEY) not set"
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(
+                GEMINI_MODELS_URL, params={"key": api_key, "pageSize": 1000}
+            )
+            if response.status_code >= 400:
+                return [], f"HTTP {response.status_code}: {response.text[:200]}"
+            data = response.json()
+            out = []
+            for m in data.get('models', []):
+                name = m.get('name') or ''            # e.g. "models/gemini-2.5-flash"
+                mid = name.split('/', 1)[1] if '/' in name else name
+                if not mid.startswith('gemini'):
+                    continue
+                if 'generateContent' not in (m.get('supportedGenerationMethods') or []):
+                    continue
+                if any(x in mid.lower() for x in _GEMINI_EXCLUDE):
+                    continue
+                if _GEMINI_PINNED.search(mid):
+                    continue
+                out.append(f"google/{mid}")
+            return sorted(set(out)), None
+    except Exception as e:
+        return [], f"{type(e).__name__}: {e}"

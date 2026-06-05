@@ -18,13 +18,14 @@ Mode and model are selected per-conversation in the UI and overridden via the `m
 ### Backend Structure (`backend/`)
 
 **`config.py`**
-- Reads provider API keys from env (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`)
+- Reads provider API keys from env (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`) plus `OLLAMA_HOST` (no key — local server, default `http://localhost:11434`)
 - Internal defaults for `PERSONA_MODEL`, `CHAIRMAN_MODEL`, `TITLE_MODEL`, `COUNCIL_MODELS`, `PERSONA_MODEL_MAP` (used only when UI doesn't override)
 - Lists `PERSONAS` and points to `PERSONAS_DIR` (`personas/` at repo root)
 - Backend runs on **port 8001**
 
 **`providers/`** — provider router (replaces Karpathy's single-file `openrouter.py`)
 - `router.py`: `query_model(model, messages, timeout)` dispatches based on model prefix + available keys.
+  - `ollama/*` → `providers.ollama` (local, no key; routed by prefix only, before the OpenRouter fallback so it never leaks out)
   - `anthropic/*` → `providers.anthropic` if `ANTHROPIC_API_KEY` set, else OpenRouter
   - `openai/*` → `providers.openai` if `OPENAI_API_KEY` set, else OpenRouter
   - `google/*` or `gemini/*` → `providers.gemini` if `GOOGLE_API_KEY` set, else OpenRouter
@@ -32,8 +33,10 @@ Mode and model are selected per-conversation in the UI and overridden via the `m
 - `anthropic.py`: Anthropic Messages API. Extracts system message from messages array into Anthropic's separate `system` field.
 - `openai.py`: OpenAI Chat Completions API. Format identical to OpenAI/OpenRouter standard.
 - `gemini.py`: Google Gemini API. Converts OpenAI-style messages to Gemini's `contents` / `systemInstruction` format. Uses `model` role instead of `assistant`.
+- `ollama.py`: Local Ollama via its OpenAI-compatible `/v1/chat/completions` endpoint. No API key — `OLLAMA_HOST` points at the server. Generous default timeout (local models are slower; first call loads the model into memory).
 - `openrouter.py`: OpenRouter fallback. Receives the full prefixed model identifier.
 - Each provider returns `(result, error)` tuples. Router aggregates errors into module-level `last_errors` dict keyed by full model identifier.
+- **Dynamic model discovery:** `anthropic.py`, `openai.py`, `gemini.py`, and `ollama.py` each expose `list_models() -> (List[str], error)` returning prefixed identifiers. `main.py` uses these to populate the dropdown, so new releases appear automatically (see "Dynamic model catalog" below).
 
 **`council.py`** - The Core Orchestrator
 - `get_council_members(mode, persona_model_override)`: Returns list of `{member_id, model, persona}` dicts based on mode. Mode and persona_model can both be overridden per request.
@@ -47,9 +50,11 @@ Mode and model are selected per-conversation in the UI and overridden via the `m
 **`storage.py`** — JSON-based conversation storage in `data/conversations/`. Schema-agnostic; persona/member_id fields persist automatically.
 
 **`main.py`** — FastAPI app with CORS for `localhost:5173` and `localhost:3000`.
-- `GET /api/providers` — returns `{keys, available_models, default_model, config_defaults}` based on which provider keys are set. Frontend uses this to populate the model dropdown.
+- `GET /api/providers` — returns `{keys, available_models, default_model, config_defaults}` based on which provider keys are set (plus Ollama reachability). Frontend uses this to populate the model dropdown.
 - `POST /api/conversations/{id}/message` and `/message/stream` — accept optional `mode` and `model` overrides in the request body and thread them through to council stages and title generator.
-- `PROVIDER_MODELS` catalog: which models to expose in the UI per provider. Edit here to add or remove dropdown options.
+- **Dynamic model catalog:** when a direct provider key is set, `_discover_models(provider)` calls that provider's `list_models()` and caches the result (`_MODELS_CACHE`, TTL `_MODELS_CACHE_TTL` = 1h) so new releases appear automatically. Discovery for all keyed providers + Ollama runs concurrently via `asyncio.gather`. On discovery failure (or when a provider is only reachable via OpenRouter), it falls back to the curated `PROVIDER_MODELS` list.
+- `PROVIDER_MODELS`: now the **curated fallback** list (and the source of "preferred" defaults), not the primary catalog. Edit here to change fallback options / default preference. Per-provider list-filtering heuristics (which models count as chat models) live in each provider's `list_models()`.
+- `default_model` selection prefers `PERSONA_MODEL`, then the curated flagships, then the first available — so a dynamic alphabetical list never defaults to an old model like `gpt-3.5-turbo`.
 
 ### Frontend Structure (`frontend/src/`)
 
@@ -149,6 +154,7 @@ All backend modules use relative imports (e.g., `from .config import ...`). Run 
 
 | Prefix | Direct provider | Fallback |
 |---|---|---|
+| `ollama/` | `OLLAMA_HOST` → local Ollama (no key) | none (always local) |
 | `anthropic/` | `ANTHROPIC_API_KEY` → Anthropic API | OpenRouter |
 | `openai/` | `OPENAI_API_KEY` → OpenAI API | OpenRouter |
 | `google/` or `gemini/` | `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) → Gemini API | OpenRouter |
@@ -163,6 +169,7 @@ If no key matches for a model, `query_model` returns None with an error recorded
 3. **Ranking Parse Failures**: If models don't follow the `FINAL RANKING:` format, fallback regex extracts any "Response X" patterns in order
 4. **No API keys configured**: UI shows a provider warning banner and disables submission. Backend's `/api/providers` returns empty `available_models`.
 5. **Model identifier with period vs hyphen** (Anthropic): Anthropic's native API uses hyphens (`claude-sonnet-4-5`). OpenRouter slugs sometimes use periods (`claude-sonnet-4.5`). Use hyphens for direct provider access.
+6. **Slow Ollama models drop council members**: The 5 stage-1 members fire in parallel, but Ollama serializes generations for a model (limited `OLLAMA_NUM_PARALLEL`). With a slow reasoning model (e.g. `deepseek-r1`), queued members blow past the timeout and get silently dropped (graceful degradation), so only the first 1–2 personas appear. Mitigated by: (a) `query_model(timeout=None)` letting Ollama use its generous `OLLAMA_TIMEOUT` (300s) instead of the 120s default, and (b) a client-side `OLLAMA_MAX_CONCURRENCY` semaphore (default 1) so each request's timeout starts when it actually runs rather than at t=0. For faster throughput, raise both `OLLAMA_NUM_PARALLEL` (Ollama server) and `OLLAMA_MAX_CONCURRENCY` (this app). Note: title generation keeps a short 30s timeout, so a slow Ollama model just falls back to a default title.
 
 ## Future Enhancement Ideas
 

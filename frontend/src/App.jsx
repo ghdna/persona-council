@@ -117,7 +117,11 @@ function App() {
             break;
 
           case 'stage1_complete':
-            updateLastMessage({ stage1: event.data, loading: { stage1: false } });
+            updateLastMessage({
+              stage1: event.data,
+              stage1_failures: event.failures || [],
+              loading: { stage1: false },
+            });
             break;
 
           case 'stage2_start':

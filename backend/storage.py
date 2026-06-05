@@ -131,7 +131,8 @@ def add_assistant_message(
     conversation_id: str,
     stage1: List[Dict[str, Any]],
     stage2: List[Dict[str, Any]],
-    stage3: Dict[str, Any]
+    stage3: Dict[str, Any],
+    stage1_failures: Optional[List[Dict[str, Any]]] = None,
 ):
     """
     Add an assistant message with all 3 stages to a conversation.
@@ -141,6 +142,8 @@ def add_assistant_message(
         stage1: List of individual model responses
         stage2: List of model rankings
         stage3: Final synthesized response
+        stage1_failures: Council members that failed in stage 1 (dropped from the
+            run); persisted so the partial-failure note survives a page reload.
     """
     conversation = get_conversation(conversation_id)
     if conversation is None:
@@ -150,7 +153,8 @@ def add_assistant_message(
         "role": "assistant",
         "stage1": stage1,
         "stage2": stage2,
-        "stage3": stage3
+        "stage3": stage3,
+        "stage1_failures": stage1_failures or [],
     })
 
     save_conversation(conversation)

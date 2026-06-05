@@ -5,6 +5,7 @@ import httpx
 from typing import List, Dict, Any, Optional, Tuple
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models"
 ANTHROPIC_VERSION = "2023-06-01"
 
 
@@ -78,3 +79,30 @@ async def query(
         return None, f"Timeout after {timeout}s"
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
+
+
+async def list_models(timeout: float = 10.0) -> Tuple[List[str], Optional[str]]:
+    """List available Claude models from the Anthropic API as 'anthropic/<id>'.
+
+    Every model the endpoint returns is chat-capable, so no filtering is needed.
+    The API returns newest first; we preserve that order. Returns ([...], None)
+    on success or ([], error) on failure (caller falls back to the curated list).
+    """
+    api_key = os.getenv('ANTHROPIC_API_KEY')
+    if not api_key:
+        return [], "ANTHROPIC_API_KEY not set"
+
+    headers = {"x-api-key": api_key, "anthropic-version": ANTHROPIC_VERSION}
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(
+                ANTHROPIC_MODELS_URL, headers=headers, params={"limit": 1000}
+            )
+            if response.status_code >= 400:
+                return [], f"HTTP {response.status_code}: {response.text[:200]}"
+            data = response.json()
+            models = [f"anthropic/{m['id']}" for m in data.get('data', []) if m.get('id')]
+            return models, None
+    except Exception as e:
+        return [], f"{type(e).__name__}: {e}"

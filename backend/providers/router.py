@@ -8,6 +8,7 @@ from . import anthropic as anthropic_provider
 from . import openai as openai_provider
 from . import gemini as gemini_provider
 from . import openrouter as openrouter_provider
+from . import ollama as ollama_provider
 
 # Module-level dict for capturing last error per model (full identifier including prefix)
 last_errors: Dict[str, str] = {}
@@ -29,6 +30,12 @@ def _route(model: str) -> Tuple[Optional[Callable], str, str]:
     else:
         prefix, native_id = '', model
 
+    # Ollama runs locally with no API key — route by prefix only. Must come
+    # before the OpenRouter fallback so local models never leak to OpenRouter.
+    # If the server is down, the provider call returns an error.
+    if prefix == 'ollama':
+        return ollama_provider.query, native_id, 'ollama'
+
     # Try direct provider first (prefix match + key available)
     if prefix == 'anthropic' and anthropic_key:
         return anthropic_provider.query, native_id, 'anthropic'
@@ -47,12 +54,16 @@ def _route(model: str) -> Tuple[Optional[Callable], str, str]:
 async def query_model(
     model: str,
     messages: List[Dict[str, str]],
-    timeout: float = 120.0
+    timeout: Optional[float] = None
 ) -> Optional[Dict[str, Any]]:
     """Route a model query to the appropriate provider.
 
     Returns response dict {'content': str, ...} on success, None on failure.
     On failure, records the error in `last_errors[model]` and prints to stdout.
+
+    When `timeout` is None, each provider applies its own default — hosted APIs
+    use 120s, but local Ollama uses a much longer one (reasoning models are slow
+    and Ollama serializes concurrent requests). Pass an explicit value to override.
     """
     query_func, native_model, provider_name = _route(model)
 
@@ -76,7 +87,11 @@ async def query_model(
 
     last_errors.pop(model, None)
 
-    result, error = await query_func(native_model, messages, timeout)
+    # timeout=None → let the provider use its own default (e.g. Ollama's longer one)
+    if timeout is None:
+        result, error = await query_func(native_model, messages)
+    else:
+        result, error = await query_func(native_model, messages, timeout)
 
     if error:
         last_errors[model] = error

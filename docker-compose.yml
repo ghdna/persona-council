@@ -6,6 +6,12 @@ services:
       - "8001:8001"
     env_file:
       - .env
+    environment:
+      # Reach an Ollama server running on the host. Override in .env if needed.
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+    extra_hosts:
+      # Makes host.docker.internal resolve on Linux too (works out of the box on Docker Desktop).
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/app/data
     restart: unless-stopped

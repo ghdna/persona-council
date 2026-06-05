@@ -6,7 +6,7 @@ A multi-persona council pattern for solo decision-making. Extended from Andrej K
 
 **Karpathy's original:** Send a query to multiple frontier models (GPT, Gemini, Claude, Grok via OpenRouter), have them review each other anonymously, and synthesize with a Chairman.
 
-**This fork adds:** Persona-bound prompting so the same pattern works with a single LLM (no OpenRouter required), direct provider integration for Anthropic, OpenAI, and Gemini, a UI that picks your model from whichever API keys you've configured, and a dark theme. Plus a Claude Code slash-command version for users of [Claude Code](https://claude.com/claude-code).
+**This fork adds:** Persona-bound prompting so the same pattern works with a single LLM (no OpenRouter required), direct provider integration for Anthropic, OpenAI, and Gemini, local/offline models via Ollama (no API key), a UI that discovers your models dynamically from whichever keys you've configured, and a dark theme. Plus a Claude Code slash-command version for users of [Claude Code](https://claude.com/claude-code).
 
 ![Persona Council UI](Screenshot.png)
 
@@ -56,14 +56,16 @@ Open <http://localhost:5173>. The UI shows a model dropdown populated from which
 
 | Area | Karpathy's `llm-council` | This fork (`persona-council`) |
 |---|---|---|
-| **LLM access** | OpenRouter only (one key, all providers) | Direct Anthropic + OpenAI + Gemini APIs; OpenRouter as optional fallback |
+| **LLM access** | OpenRouter only (one key, all providers) | Direct Anthropic + OpenAI + Gemini APIs, local models via Ollama (no key), OpenRouter as optional fallback |
 | **Council members** | Different LLMs ranking each other (model diversity) | Configurable: different models, same model with different persona prompts (prompt diversity), or both |
 | **Modes** | One (multi-LLM) | Three: `persona`, `model`, `hybrid` |
-| **Model selection** | Hardcoded in `backend/config.py` | UI dropdown populated dynamically from configured API keys |
+| **Model selection** | Hardcoded in `backend/config.py` | UI dropdown discovered dynamically from each provider's API + local Ollama — new releases appear automatically |
 | **Mode selection** | N/A | UI dropdown per conversation |
+| **Resilience** | Minimal | Graceful degradation — failed/timed-out members are skipped and the council continues, with a note in Stage 1 showing who dropped and why |
 | **Theme** | Light | Dark (GitHub-dark palette, color-coded personas) |
+| **Deployment** | Local dev (uv + npm) | Local dev, or one-command Docker (`docker compose up`) with multi-arch images (amd64 + arm64) auto-published to GHCR |
 | **Claude Code skill** | N/A | Bundled in `claude-code-skill/` as a `/council` slash command |
-| **Required signup** | OpenRouter account + credits | Just bring whatever provider key you already have |
+| **Required signup** | OpenRouter account + credits | Just bring whatever provider key you already have — or run fully offline with Ollama |
 
 ---
 
@@ -159,14 +161,34 @@ OPENROUTER_API_KEY=sk-or-v1-...   # https://openrouter.ai/keys (optional)
 
 **Want multi-LLM diversity?** Set keys for each provider you want, or use `OPENROUTER_API_KEY` as a single-key fallback for everything.
 
+**Want to run local / small models for free, no key?** Install [Ollama](https://ollama.com), then:
+
+```bash
+ollama serve                 # start the local server (default :11434)
+ollama pull llama3.2         # pull any model(s) you want
+```
+
+Locally-installed models are discovered automatically and appear in the UI dropdown as `ollama/<model>`. No API key required — billing-free and fully offline. Point at a non-default server with `OLLAMA_HOST` in `.env`. **Running the backend in Docker?** Set `OLLAMA_HOST=http://host.docker.internal:11434` so the container can reach Ollama on your host (already wired into `docker-compose.yml`).
+
+#### Ollama known issues
+
+- **It's slow, and slow reasoning models can drop council members.** The council runs all 5 personas in parallel, but Ollama serializes generations for a model (one at a time, limited by `OLLAMA_NUM_PARALLEL` and your RAM/VRAM). With a slow reasoning model like `deepseek-r1`, members queue up — and if one exceeds its timeout it's skipped (the council continues with whoever responded). When that happens you'll see an amber **"N of 5 members didn't respond"** note at the top of Stage 1. To avoid it:
+  - Prefer a small, fast model (e.g. `llama3.2`) for interactive use; reserve heavy reasoning models for when you're willing to wait.
+  - Raise the timeout: `OLLAMA_TIMEOUT=600` in `.env` (default 300s per request).
+  - Increase real parallelism: set `OLLAMA_NUM_PARALLEL` (on the Ollama server) **and** `OLLAMA_MAX_CONCURRENCY` (in `.env`, default 1) — requires enough memory to hold multiple model instances at once.
+  - Expect a full council on a large local reasoning model to take **several minutes**; Stage 1 alone runs the members one after another.
+- **Self-recognition in Stage 2.** In `persona` mode every persona is the *same* underlying model, so it can sometimes recognize its own writing despite anonymization (a fundamental single-LLM tradeoff, not Ollama-specific).
+- **Ranking-format drift.** Smaller local models follow the `FINAL RANKING:` format less reliably than frontier models, so extracted rankings can be noisier (the fallback parser still handles it).
+
 Models that currently require OpenRouter (no direct integration yet): `xai/grok-*`, `deepseek/*`.
 
 ### 3. Configure council (optional)
 
 Most users don't need to touch this. The UI handles mode and model selection.
 
-If you want to change what shows up in the model dropdown or adjust the multi-model defaults for `model`/`hybrid` modes, edit:
-- `backend/main.py` → `PROVIDER_MODELS` controls dropdown options per provider
+The dropdown is **populated dynamically**: when a direct provider key is set, the available models are discovered from that provider's API (Anthropic, OpenAI, Gemini) — and Ollama lists whatever you've pulled locally — so newly released models appear automatically with no code change. If you want to adjust this, edit:
+- `backend/main.py` → `PROVIDER_MODELS` is the curated **fallback** list (used if discovery fails or a provider is only reachable via OpenRouter) and the source of the preferred default model
+- `backend/providers/<provider>.py` → each `list_models()` holds the per-provider filter (which models count as chat models)
 - `backend/config.py` → `COUNCIL_MODELS`, `PERSONA_MODEL_MAP` set defaults for non-`persona` modes
 
 ---
@@ -192,6 +214,23 @@ npm run dev
 ```
 
 Then open <http://localhost:5173>.
+
+### Smoke test (manual)
+
+No automated UI tests yet, so after any change that touches the frontend, streaming, or providers, run this 2-minute checklist to confirm nothing visual broke. Use a fast model (e.g. `gpt-4o-mini`, `claude-haiku-4-5`, or `ollama/llama3.2`) to keep it quick.
+
+- [ ] **App loads** — UI renders at <http://localhost:5173> with no console errors; the model dropdown is populated.
+- [ ] **No-keys state** — with no provider keys set *and* Ollama not running, the provider warning shows and the send button is disabled.
+- [ ] **Ollama discovery** — with `ollama serve` running, locally-pulled models appear in the dropdown as `ollama/<model>`.
+- [ ] **Persona mode** — ask a decision-shaped question. All three panels render in order: **Stage 1** (5 persona tabs), **Stage 2** (rankings + aggregate "street cred"), **Stage 3** (green chairman answer). Mode/model badges appear on the response.
+- [ ] **Panels open without refresh** — each stage panel opens on its own as it streams in; the spinner for a stage is replaced by its panel (this is the SSE regression we fixed — watch Stage 2 especially).
+- [ ] **Stage 2 readability** — raw evaluations show persona names in **bold**, not `Response A/B/C`.
+- [ ] **Model mode** — switch to Models mode, run once; tabs show model names (not personas).
+- [ ] **Hybrid mode** — switch to Hybrid mode, run once; each tab shows a persona backed by a different model.
+- [ ] **Title + history** — the conversation gets an auto-generated title and appears in the sidebar; reloading the page restores the full conversation with all panels.
+- [ ] **Graceful failure** — pick an unconfigured/invalid model; the run surfaces a readable error instead of hanging or crashing.
+
+> Model and Hybrid modes need keys for multiple providers (or `OPENROUTER_API_KEY`). With a single key or only Ollama, Persona mode is the one to smoke-test.
 
 ---
 
@@ -232,7 +271,7 @@ To stop: `docker-compose down`
 |---|---|---|
 | **Add or edit personas** | `personas/*.md` | Each persona is a markdown file with a Lens, Instructions, and Format section. The list of active personas is in `backend/config.py` (`PERSONAS`). |
 | **Change persona colors** | `frontend/src/components/Stage1.css` and `Stage2.css` | Search for `.tab.persona-<name>` and `.aggregate-item.persona-<name>`. Update hex colors. |
-| **Change which models appear in the dropdown** | `backend/main.py` (`PROVIDER_MODELS`) | Add or remove model identifiers per provider. |
+| **Change which models appear in the dropdown** | Discovered automatically from each keyed provider's API + local Ollama. Tune the per-provider filter in `backend/providers/<provider>.py` (`list_models`); edit the curated fallback in `backend/main.py` (`PROVIDER_MODELS`). |
 | **Default mode** | `.env` (`COUNCIL_MODE`) or `backend/config.py` (`MODE`) | `persona`, `model`, or `hybrid`. UI selection overrides this per conversation. |
 | **Stage accent colors** | `Stage1.css` / `Stage2.css` / `Stage3.css` | Blue (`#58a6ff`), pink (`#ec4899`), green (`#3fb950`). |
 

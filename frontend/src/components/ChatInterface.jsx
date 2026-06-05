@@ -109,7 +109,9 @@ export default function ChatInterface({
                       <span>Running Stage 1: Collecting individual responses...</span>
                     </div>
                   )}
-                  {msg.stage1 && <Stage1 responses={msg.stage1} />}
+                  {(msg.stage1 || msg.stage1_failures?.length > 0) && (
+                    <Stage1 responses={msg.stage1} failures={msg.stage1_failures} />
+                  )}
 
                   {msg.loading?.stage2 && (
                     <div className="stage-loading">
@@ -157,10 +159,12 @@ export default function ChatInterface({
         <form className="input-form" onSubmit={handleSubmit}>
           {noKeysConfigured && (
             <div className="provider-warning">
-              <strong>No provider API keys configured.</strong> Add at least one of
+              <strong>No models available.</strong> Either add at least one of
               <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>,
               <code>GOOGLE_API_KEY</code>, or <code>OPENROUTER_API_KEY</code> to your <code>.env</code>
-              and restart the backend.
+              and restart the backend, or run a local model with{' '}
+              <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> (no key needed —
+              just <code>ollama serve</code> and <code>ollama pull</code> a model).
             </div>
           )}
 

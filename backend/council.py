@@ -91,12 +91,19 @@ async def stage1_collect_responses(
     user_query: str,
     mode: Optional[str] = None,
     model: Optional[str] = None,
-) -> List[Dict[str, Any]]:
-    """Stage 1: Collect responses from each council member."""
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Stage 1: Collect responses from each council member.
+
+    Returns (results, failures). Members that fail (timeout, error) are dropped
+    from results — the council continues with whoever responded (graceful
+    degradation) — but are reported in `failures` so the UI can tell the user
+    why fewer members appeared (e.g. a slow local Ollama model that timed out).
+    """
     members = get_council_members(mode=mode, persona_model_override=model)
     responses = await query_members_parallel(members, user_query)
 
     stage1_results = []
+    stage1_failures = []
     for member, response in zip(members, responses):
         if response is not None:
             stage1_results.append({
@@ -105,8 +112,17 @@ async def stage1_collect_responses(
                 "persona": member["persona"],
                 "response": response.get('content', '')
             })
+        else:
+            stage1_failures.append({
+                "member_id": member["member_id"],
+                "model": member["model"],
+                "persona": member["persona"],
+                # In persona mode all members share one model, so last_errors is
+                # keyed by model and gives a representative reason (usually a timeout).
+                "error": last_errors.get(member["model"], "no response"),
+            })
 
-    return stage1_results
+    return stage1_results, stage1_failures
 
 
 def format_member_display(member_id: str) -> str:
@@ -378,13 +394,13 @@ async def run_full_council(
     model: Optional[str] = None,
 ) -> Tuple[List, List, Dict, Dict]:
     """Run the complete 3-stage council process."""
-    stage1_results = await stage1_collect_responses(user_query, mode=mode, model=model)
+    stage1_results, stage1_failures = await stage1_collect_responses(user_query, mode=mode, model=model)
 
     if not stage1_results:
         return [], [], {
             "model": "error",
             "response": "All council members failed to respond. Please try again."
-        }, {}
+        }, {"stage1_failures": stage1_failures}
 
     stage2_results, label_to_member = await stage2_collect_rankings(user_query, stage1_results)
     aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_member)
@@ -399,6 +415,7 @@ async def run_full_council(
         "label_to_member": label_to_member,
         "label_to_model": label_to_member,  # backward-compat alias
         "aggregate_rankings": aggregate_rankings,
+        "stage1_failures": stage1_failures,
     }
 
     return stage1_results, stage2_results, stage3_result, metadata

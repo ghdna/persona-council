@@ -121,3 +121,20 @@
   color: #c9d1d9;
   line-height: 1.6;
 }
+
+.stage1-failures {
+  background: #2d2410;
+  border: 1px solid #5c4813;
+  color: #e3b341;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.stage1-failures-hint {
+  color: #8b7a3e;
+  font-size: 12px;
+  margin-top: 6px;
+}

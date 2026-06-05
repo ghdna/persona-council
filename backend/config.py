@@ -20,6 +20,16 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
+# Ollama needs no key — just a reachable local server. Override the host for
+# Docker (http://host.docker.internal:11434) or a remote Ollama instance.
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+# Per-request timeout (s) for Ollama. Generous because reasoning models (e.g.
+# deepseek-r1) are slow and Ollama serializes concurrent council members.
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "300"))
+# How many generations to send Ollama at once. Default 1 (Ollama serializes per
+# model anyway); raise it if your server runs with OLLAMA_NUM_PARALLEL > 1.
+OLLAMA_MAX_CONCURRENCY = max(1, int(os.getenv("OLLAMA_MAX_CONCURRENCY", "1")))
+
 # ─────────────────────────────────────────────────────────────────────────
 # Default council mode (overridable per-request from the UI)
 # ─────────────────────────────────────────────────────────────────────────
